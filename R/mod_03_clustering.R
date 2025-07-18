@@ -667,17 +667,18 @@ mod_03_clustering_server <- function(id, pre_process, load_data, idep_data, tab)
 
       # Get the row ids of selected genes
       lt <- InteractiveComplexHeatmap::getPositionFromBrush(input$ht_brush)
-      pos1 <- lt[[1]]
-      pos2 <- lt[[2]]
-      pos <- InteractiveComplexHeatmap::selectArea(
-        shiny_env$ht,
-        mark = FALSE,
-        pos1 = pos1,
-        pos2 = pos2,
-        verbose = FALSE,
-        ht_pos = shiny_env$ht_pos_main
-      )
-      row_index <- unlist(pos[1, "row_index"])
+        pos1 <- lt[[1]]
+        pos2 <- lt[[2]]
+        pos <- InteractiveComplexHeatmap::selectArea(
+          shiny_env$ht,
+          mark = FALSE,
+          pos1 = pos1,
+          pos2 = pos2,
+          verbose = FALSE,
+          ht_pos = shiny_env$ht_pos_main
+        )
+        row_index <- unlist(pos[1, "row_index"])
+
       # convert to height, pxiels
       height1 <- max(
         400, # minimum
@@ -693,40 +694,17 @@ mod_03_clustering_server <- function(id, pre_process, load_data, idep_data, tab)
     output$sub_heatmap <- renderPlot(
       {
         req(!is.null(heatmap_main_object()))
-        if (is.null(input$ht_brush)) {
-          grid::grid.newpage()
-          grid::grid.text("Select a region on the heatmap to zoom in.
-        Selection can be adjusted from the sides.
-        It can also be dragged around.
-        ", 0.5, 0.5)
-        } else {
-          shinybusy::show_modal_spinner(
-            spin = "orbit",
-            text = "Creating sub-heatmap",
-            color = "#000000"
-          )
-          try(
-            submap_return <- heatmap_sub_object_calc()
-          )
-
-          # Objects used in other components ----------
-          shiny_env$ht_sub_obj <- submap_return$ht_select
-          shiny_env$submap_data <- submap_return$submap_data
-          shiny_env$sub_groups <- submap_return$sub_groups
-          shiny_env$group_colors <- submap_return$group_colors
-          shiny_env$click_data <- submap_return$click_data
-
-          shiny_env$ht_sub <- ComplexHeatmap::draw(
-            shiny_env$ht_sub_obj,
-            annotation_legend_list = submap_return$lgd,
-            annotation_legend_side = "top"
-          )
-
-          shiny_env$ht_pos_sub <- InteractiveComplexHeatmap::htPositionsOnDevice(shiny_env$ht_sub)
-
-          shinybusy::remove_modal_spinner()
-          return(shiny_env$ht_sub)
-        }
+        shinybusy::show_modal_spinner(
+          spin = "orbit",
+          text = "Creating sub-heatmap",
+          color = "#000000"
+        )
+        
+        sub <- heatmap_sub_object()
+        
+        shinybusy::remove_modal_spinner()
+        
+        return(sub)
       },
       # adjust height of the zoomed in heatmap dynamically based on selection
       height = reactive(height_sub_heatmap())
@@ -743,35 +721,30 @@ mod_03_clustering_server <- function(id, pre_process, load_data, idep_data, tab)
       input$sample_color
     })
 
-    heatmap_sub_object_calc <- reactive({
-      req(!is.null(heatmap_main_object()))
-      req(!is.null(submitted_pal()))
-      req(!is.null(selected_factors_heatmap()))
-      try( # tolerates error; otherwise stuck with spinner
-        submap_return <- heat_sub(
-          ht_brush = input$ht_brush,
-          ht = shiny_env$ht,
-          ht_pos_main = shiny_env$ht_pos_main,
-          heatmap_data = heatmap_data(),
-          sample_info = pre_process$sample_info(),
-          select_factors_heatmap = selected_factors_heatmap(),
-          cluster_meth = input$cluster_meth,
-          group_pal = group_pal(),
-          sample_color = submitted_pal()
-        )
-      )
-
-      return(submap_return)
-    })
     # Subheatmap creation ---------
     heatmap_sub_object <- reactive({
       req(!is.null(heatmap_main_object()))
+      req(!is.null(submitted_pal()))
+      req(!is.null(selected_factors_heatmap()))
       if (is.null(input$ht_brush)) {
         grid::grid.newpage()
-        grid::grid.text("Select a region on the heatmap to zoom in.", 0.5, 0.5)
+        grid::grid.text("Select a region on the heatmap to zoom in.
+        Selection can be adjusted from the sides.
+        It can also be dragged around.
+        ", 0.5, 0.5)
       } else {
         try(
-          submap_return <- heatmap_sub_object_calc()
+          submap_return <- heat_sub(
+            ht_brush = input$ht_brush,
+            ht = shiny_env$ht,
+            ht_pos_main = shiny_env$ht_pos_main,
+            heatmap_data = heatmap_data(),
+            sample_info = pre_process$sample_info(),
+            select_factors_heatmap = selected_factors_heatmap(),
+            cluster_meth = input$cluster_meth,
+            group_pal = group_pal(),
+            sample_color = submitted_pal()
+          )
         )
 
         # Objects used in other components ----------
@@ -780,12 +753,16 @@ mod_03_clustering_server <- function(id, pre_process, load_data, idep_data, tab)
         shiny_env$sub_groups <- submap_return$sub_groups
         shiny_env$group_colors <- submap_return$group_colors
         shiny_env$click_data <- submap_return$click_data
-
-        return(ComplexHeatmap::draw(
+        
+        shiny_env$ht_sub <- ComplexHeatmap::draw(
           shiny_env$ht_sub_obj,
           annotation_legend_list = submap_return$lgd,
           annotation_legend_side = "top"
-        ))
+        )
+
+        shiny_env$ht_pos_sub <- InteractiveComplexHeatmap::htPositionsOnDevice(shiny_env$ht_sub)
+        
+        return(shiny_env$ht_sub)
       }
     })
 
